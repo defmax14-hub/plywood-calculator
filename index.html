@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NORDECO Plywood Calculator</title>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f4f6f9;
+      margin: 0;
+      padding: 40px;
+      color: #222;
+    }
+
+    .container {
+      max-width: 1100px;
+      margin: auto;
+      background: white;
+      padding: 30px;
+      border-radius: 16px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+    }
+
+    h1 {
+      margin-top: 0;
+      font-size: 32px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 20px;
+      margin-top: 30px;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+    }
+
+    label {
+      margin-bottom: 8px;
+      font-weight: bold;
+    }
+
+    select,
+    input {
+      padding: 12px;
+      border-radius: 10px;
+      border: 1px solid #ccc;
+      font-size: 16px;
+    }
+
+    .results {
+      margin-top: 40px;
+      background: #f7f9fc;
+      border-radius: 14px;
+      padding: 25px;
+    }
+
+    .result-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 20px;
+    }
+
+    .card {
+      background: white;
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+    }
+
+    .card-title {
+      font-size: 14px;
+      color: #777;
+      margin-bottom: 10px;
+    }
+
+    .card-value {
+      font-size: 28px;
+      font-weight: bold;
+    }
+
+    .info {
+      margin-top: 25px;
+      line-height: 1.7;
+    }
+
+    @media (max-width: 768px) {
+      body {
+        padding: 15px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <h1>NORDECO Plywood Calculator</h1>
+
+  <div class="grid">
+
+    <div class="field">
+      <label>Формат</label>
+      <select id="format"></select>
+    </div>
+
+    <div class="field">
+      <label>Толщина (мм)</label>
+      <select id="thickness"></select>
+    </div>
+
+    <div class="field">
+      <label>Количество листов</label>
+      <input type="number" id="sheets" value="100" />
+    </div>
+
+    <div class="field">
+      <label>Цена за м³ (€)</label>
+      <input type="number" id="priceM3" value="550" />
+    </div>
+
+    <div class="field">
+      <label>Стоимость логистики (€)</label>
+      <input type="number" id="logistics" value="2500" />
+    </div>
+
+    <div class="field">
+      <label>Тип транспорта</label>
+      <select id="transport">
+        <option value="truck">Фура</option>
+        <option value="container">Контейнер</option>
+        <option value="wagon">Вагон</option>
+      </select>
+    </div>
+
+  </div>
+
+  <div class="results">
+    <div class="result-grid">
+
+      <div class="card">
+        <div class="card-title">Объем заказа</div>
+        <div class="card-value" id="volumeResult">0</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Стоимость за лист</div>
+        <div class="card-value" id="sheetPrice">0</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Стоимость за м²</div>
+        <div class="card-value" id="sqmPrice">0</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Итоговая стоимость</div>
+        <div class="card-value" id="totalPrice">0</div>
+      </div>
+
+    </div>
+
+    <div class="info" id="info"></div>
+  </div>
+</div>
+
+<script>
+
+const plywoodData = {
+  "1220x2440": {
+    area: 2.9768,
+    thicknesses: {
+      "6.5": { sheetsPack: 61, volumePack: 1.18 },
+      "9": { sheetsPack: 44, volumePack: 1.179 },
+      "12": { sheetsPack: 33, volumePack: 1.179 },
+      "15": { sheetsPack: 26, volumePack: 1.161 },
+      "18": { sheetsPack: 22, volumePack: 1.179 },
+      "21": { sheetsPack: 19, volumePack: 1.188 }
+    }
+  },
+
+  "1250x2500": {
+    area: 3.125,
+    thicknesses: {
+      "6.5": { sheetsPack: 61, volumePack: 1.239 },
+      "9": { sheetsPack: 44, volumePack: 1.238 },
+      "12": { sheetsPack: 33, volumePack: 1.24 },
+      "15": { sheetsPack: 26, volumePack: 1.219 },
+      "18": { sheetsPack: 22, volumePack: 1.238 },
+      "21": { sheetsPack: 19, volumePack: 1.247 }
+    }
+  }
+};
+
+const formatSelect = document.getElementById('format');
+const thicknessSelect = document.getElementById('thickness');
+
+function initFormats() {
+  Object.keys(plywoodData).forEach(format => {
+    const option = document.createElement('option');
+    option.value = format;
+    option.textContent = format;
+    formatSelect.appendChild(option);
+  });
+
+  updateThicknesses();
+}
+
+function updateThicknesses() {
+  thicknessSelect.innerHTML = '';
+
+  const selectedFormat = formatSelect.value;
+  const thicknesses = plywoodData[selectedFormat].thicknesses;
+
+  Object.keys(thicknesses).forEach(thickness => {
+    const option = document.createElement('option');
+    option.value = thickness;
+    option.textContent = thickness;
+    thicknessSelect.appendChild(option);
+  });
+
+  calculate();
+}
+
+function calculate() {
+  const format = formatSelect.value;
+  const thickness = thicknessSelect.value;
+
+  const sheets = Number(document.getElementById('sheets').value);
+  const priceM3 = Number(document.getElementById('priceM3').value);
+  const logistics = Number(document.getElementById('logistics').value);
+
+  const data = plywoodData[format].thicknesses[thickness];
+  const areaSheet = plywoodData[format].area;
+
+  const volumePerSheet = data.volumePack / data.sheetsPack;
+
+  const totalVolume = sheets * volumePerSheet;
+  const productCost = totalVolume * priceM3;
+
+  const logisticsPerSheet = logistics / sheets;
+
+  const totalCost = productCost + logistics;
+
+  const sheetPrice = totalCost / sheets;
+  const sqmPrice = sheetPrice / areaSheet;
+
+  document.getElementById('volumeResult').innerText = totalVolume.toFixed(3) + ' м³';
+  document.getElementById('sheetPrice').innerText = sheetPrice.toFixed(2) + ' €';
+  document.getElementById('sqmPrice').innerText = sqmPrice.toFixed(2) + ' €/м²';
+  document.getElementById('totalPrice').innerText = totalCost.toFixed(2) + ' €';
+
+  document.getElementById('info').innerHTML = `
+    <b>Дополнительная информация:</b><br><br>
+    Объем одного листа: ${volumePerSheet.toFixed(4)} м³<br>
+    Площадь листа: ${areaSheet.toFixed(3)} м²<br>
+    Стоимость продукта без логистики: ${productCost.toFixed(2)} €<br>
+    Логистика на лист: ${logisticsPerSheet.toFixed(2)} €
+  `;
+}
+
+formatSelect.addEventListener('change', updateThicknesses);
+thicknessSelect.addEventListener('change', calculate);
+
+document.querySelectorAll('input, select').forEach(el => {
+  el.addEventListener('input', calculate);
+});
+
+initFormats();
+calculate();
+
+</script>
+
+</body>
+</html>
